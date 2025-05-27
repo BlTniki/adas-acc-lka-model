@@ -83,13 +83,13 @@ def sim_prec_vehicle(sim_step):
 
     # --- Режимы движения ведущего автомобиля ---
 
-    # Режим 1: Плавное движение по синусоиде
+    # # Режим 1: Плавное движение по синусоиде
     A = 1
     f = 0.5
     omega = 2 * np.pi * f
     a1 = A * np.sin(omega * t)
 
-    # # Режим 2: Постоянное ускорение
+    # Режим 2: Постоянное ускорение
     # a1 = 0.5
 
     # # Режим 3: Постоянное замедление
@@ -101,6 +101,9 @@ def sim_prec_vehicle(sim_step):
     # # Режим 5: Резкое ускорение после 10 секунды
     # a1 = 3 if t > 10 else 0
 
+    # # Режим 6: Постоянная скорость
+    # a1 = 0
+
     return a1
 
 def solve_mpc(x_now, a1_now, A_eta, Bd_eta, Bu_col):
@@ -108,6 +111,7 @@ def solve_mpc(x_now, a1_now, A_eta, Bd_eta, Bu_col):
     Q = np.diag([10, 5, 0, 0, 0])
     R = 0.1
     tau_penalty = 0.1
+    umin = -5
     umax = 2.5
 
     x = cp.Variable((5, Np+1))
@@ -120,7 +124,8 @@ def solve_mpc(x_now, a1_now, A_eta, Bd_eta, Bu_col):
     for k in range(Np):
         objective += cp.quad_form(x[:, k], Q) + R * cp.sum_squares(u[:, k]) - tau_penalty * np.sum(d[:, k]**2)
         constraints += [x[:, k+1] == A_eta @ x[:, k] + Bu_col @ u[:, k] + Bd_eta @ d[:, k]]
-        constraints += [cp.abs(u[:, k]) <= umax]
+        constraints += [u[:, k] <= umax]
+        constraints += [u[:, k] >= umin]
 
     P = Q
     objective += cp.quad_form(x[:, Np], P)
@@ -181,7 +186,7 @@ plt.title('Расстояние между автомобилями')
 plt.grid(True)
 
 plt.subplot(3,1,2)
-plt.plot(t, hist_v1, 'r', label='Ведущий v1')
+plt.plot(t, hist_v1, 'r', label='Отслеживаемый v1')
 plt.plot(t, hist_v2, 'b', label='EGO v2')
 plt.ylabel('Скорость (м/с)')
 plt.title('Скорости автомобилей')
@@ -189,7 +194,7 @@ plt.legend()
 plt.grid(True)
 
 plt.subplot(3,1,3)
-plt.plot(t, hist_a1, 'r--', label='Ведущий a1')
+plt.plot(t, hist_a1, 'r--', label='Отслеживаемый a1')
 plt.plot(t, hist_a2, 'b', label='EGO a2')
 plt.xlabel('Время (с)')
 plt.ylabel('Ускорение (м/с²)')
